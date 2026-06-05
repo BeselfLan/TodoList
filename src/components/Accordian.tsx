@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, DragEvent } from 'react';
 
 type AccordianItem = { id: number; title: string; content: string };
 
@@ -12,14 +12,43 @@ type AccordianProps = {
     items: AccordianItem[];
     onAdd: (item: Omit<AccordianItem, 'id'>) => void;
     onRemove: (id: number) => void;
+    onMove: (sourceId: number, targetId: number) => void;
 }
 
-function Accordian({ items, onAdd, onRemove }: AccordianProps) {
+function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
+
+    // handle drag and drop
+    const handleDragStart = (event: DragEvent<HTMLDivElement>, id: number) => {
+        event.dataTransfer.setData('text/plain', id.toString());
+        event.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+    };
+
+    const handleDrop = (event: DragEvent<HTMLDivElement>, targetId: number) => {
+        event.preventDefault();
+
+        const sourceId = Number(event.dataTransfer.getData('text/plain'));
+        if (!Number.isNaN(sourceId) && sourceId !== targetId) {
+            onMove(sourceId, targetId);
+        }
+    };
 
     return (
         <div>
             {items.map(item => (
-                <AccordianCard key={item.id} id={item.id} title={item.title} content={item.content} onRemove={onRemove} />
+                <AccordianCard 
+                    key={item.id}
+                    id={item.id}
+                    title={item.title}
+                    content={item.content}
+                    onRemove={onRemove}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                />
             ))}
             <AccordianAddButton onAdd={onAdd}/>
         </div>
@@ -28,15 +57,28 @@ function Accordian({ items, onAdd, onRemove }: AccordianProps) {
 
 export default Accordian;
 
-type AccordianCardProps = { id: number; title: string; content: string; onRemove: (id: number) => void};
+type AccordianCardProps = { 
+    id: number; 
+    title: string; 
+    content: string; 
+    onRemove: (id: number) => void;
+    onDragStart: (event: DragEvent<HTMLDivElement>, id: number) => void;
+    onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+    onDrop: (event: DragEvent<HTMLDivElement>, targetId: number) => void;
+};
 
-function AccordianCard({id, title, content, onRemove }: AccordianCardProps) {
+function AccordianCard({id, title, content, onRemove, onDragStart, onDragOver, onDrop}: AccordianCardProps) {
     const [isExpanded, setExpansion] = useState(false);
 
     const toggle = () => setExpansion(expanded => !expanded);
 
     return (
-        <div className='border-5 mb-1 flex justify-between'>
+        <div
+        draggable
+        onDragStart={(event) => onDragStart(event, id)}
+        onDragOver={onDragOver}
+        onDrop={(event) => onDrop(event, id)}
+        className='border-5 mb-1 flex justify-between cursor-move'>
             <div
             className='bg-red-100 pl-1'
             role='button' // this is for aria, treats the div as a button
@@ -45,7 +87,7 @@ function AccordianCard({id, title, content, onRemove }: AccordianCardProps) {
                 {isExpanded && <p>{content}</p>}
             </div>
             <div className='bg-blue-100 pl-2 pr-2 max-h-6 min-w-12 flex justify-between'>
-                <input type='checkbox'></input>
+                <input type='checkbox' />
                 <button onClick={() => onRemove(id)}>X</button>
             </div>
         </div>

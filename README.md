@@ -13,11 +13,11 @@ The stack for this project is:
 # How to Run
 
 1. Run the following command to import all the program files
-   '''
+   ```
    git clone https://github.com/BeselfLan/TodoList.git
-   '''
+   ```
 
 2. Start the development server
-   '''
+   ```
    npm run dev
-   '''
+   ```

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import Accordian from './Accordian'
+import { DropPosition } from './types';
 
 function DateSelector() {
 
@@ -44,14 +45,14 @@ function DateSelector() {
         });
     };
 
-    const handleMove = (sourceId: number, targetId: number) => {
+    const handleMove = (sourceId: number, targetId: number, position: DropPosition | null) => {
 
         setDateToItems(prev => {
 
             const prevItems = prev[dateKey] ?? [];
 
             const sourceIndex = prevItems.findIndex(item => item.id === sourceId);
-            const targetIndex = prevItems.findIndex(item => item.id === targetId);
+            let targetIndex = prevItems.findIndex(item => item.id === targetId);
 
             if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
                 return prev;
@@ -59,6 +60,12 @@ function DateSelector() {
 
             const newItems = [...prevItems];
             const [movedItem] = newItems.splice(sourceIndex, 1);
+            if (sourceIndex < targetIndex) {
+                targetIndex -= 1;
+            }
+            if (position == DropPosition.BELOW) {
+                targetIndex += 1
+            }
             newItems.splice(targetIndex, 0, movedItem);
             return {...prev, [dateKey]: newItems};
         });

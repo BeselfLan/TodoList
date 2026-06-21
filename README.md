@@ -5,6 +5,7 @@ This project was made to help me learn about react and how to use it.
 The stack for this project is:
 
 - Frontend Framework: React
+- Backend Framwork: NodeJS + Express
 - Build tool: Vite
 - Language: Typescript
 - Styling: Tailwind CSS

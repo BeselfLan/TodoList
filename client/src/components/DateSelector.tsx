@@ -1,14 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Accordian from './Accordian'
-import { DropPosition } from './types';
+import { DropPosition, type AccordianItem } from './types';
 
 function DateSelector() {
 
-    const [date, setDate] = useState(new Date(2026, 3, 12));
+    // note: Date stores month 0 indexed (i.e. 0 is January)
+    const [date, setDate] = useState(new Date(2026, 5, 23));
 
-    type Item = { id: number; title: string; content: string }
-
-    const [dateToItems, setDateToItems] = useState<Record<string, Item[]>>({});
+    const [dateToItems, setDateToItems] = useState<Record<string, AccordianItem[]>>({});
 
     const uniqueId = useRef(0);
 
@@ -27,12 +26,86 @@ function DateSelector() {
 
     const dateKey = date.toISOString().slice(0, 10); // get rid of hms
 
-    const handleAdd = (item: Omit<Item, 'id'>) => {
+    type Item = Omit<AccordianItem, 'id'>;
+
+
+    // check if provided json is of correct format
+    const isAccordianItemArray = (value: unknown): value is AccordianItem[] => {
+        return Array.isArray(value) && value.every((item) => {
+            return item !== null
+                && typeof item === 'object'
+                && typeof item.id === 'number'
+                && typeof item.title === 'string'
+                && typeof item.content === 'string';
+        });
+    };
+
+    const fetchJSON = async (url: string) => {
+        try {
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                throw new Error(`Network response not ok: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to load JSON:', error);
+            return undefined;
+        }
+    };
+
+    useEffect(() => {
+        const fetchItems = async () => {
+            const datesResponse = await fetchJSON('http://localhost:3000/data/');
+            const dateStrings: string[] = Array.isArray(datesResponse?.dates)
+                ? datesResponse.dates
+                : [];
+
+            if (dateStrings.length === 0) {
+                console.warn('No dates returned from /data:', datesResponse);
+                return;
+            }
+
+            const allLoaded = await Promise.all(dateStrings.map(async (rawDate) => {
+                const [year, month, day] = rawDate.split('/');
+                const paddedMonth = month.padStart(2, '0');
+                const paddedDay = day.padStart(2, '0');
+                const itemDateKey = `${year}-${paddedMonth}-${paddedDay}`;
+
+                const json = await fetchJSON(`http://localhost:3000/data/${year}/${paddedMonth}/${paddedDay}`);
+
+                if (!isAccordianItemArray(json)) {
+                    console.error('Unexpected /data/:year/:month/:day payload for', rawDate, json);
+                    return [itemDateKey, []] as const;
+                }
+
+                return [itemDateKey, json] as const;
+            }));
+
+            setDateToItems(prev => {
+                const next = { ...prev };
+                for (const [key, items] of allLoaded) {
+                    if (items.length > 0) {
+                        next[key] = items as AccordianItem[];   
+                    }
+                }
+                return next;
+            });
+
+            const currentItems = allLoaded.find(([key]) => key === dateKey)?.[1] ?? [];
+            uniqueId.current = currentItems.reduce((nextId, item) => Math.max(nextId, item.id), 0) + 1;
+        };
+
+        fetchItems();
+    }, []);
+
+    const handleAdd = (item: Item) => {
         setDateToItems(prev => {
             const prevItems = prev[dateKey] ?? [];
-            const newItem: Item = {
+            const newItem: AccordianItem = {
                 ...item,
-                id: uniqueId.current ++,
+                id: uniqueId.current++,
             };
             return { ...prev, [dateKey]: [...prevItems, newItem] };
         });

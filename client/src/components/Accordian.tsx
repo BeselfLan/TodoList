@@ -1,23 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent, DragEvent } from 'react';
-import { DropPosition } from './types';
+import { DropPosition, type AccordianCardProps, type AccordianProps, type AccordianAddButtonProps } from './types';
 
-type AccordianItem = { id: number; title: string; content: string };
-
-// Accordian takes function argument to 
-type AccordianAddButtonProps = {
-  onAdd: (item: Omit<AccordianItem, 'id'>) => void;
-};
-
-type AccordianProps = {
-    items: AccordianItem[];
-    onAdd: (item: Omit<AccordianItem, 'id'>) => void;
-    onRemove: (id: number) => void;
-    onMove: (sourceId: number, targetId: number, position: DropPosition | null) => void;
-}
 
 function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
-
     const [dragTarget, setDragTarget] = useState<{targetId: number, position: DropPosition} | null>(null);
 
     // handle drag and drop
@@ -83,18 +69,6 @@ function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
 }
 
 export default Accordian;
-
-type AccordianCardProps = { 
-    id: number; 
-    title: string; 
-    content: string; 
-    onRemove: (id: number) => void;
-    onDragStart: (event: DragEvent<HTMLDivElement>, id: number) => void;
-    onDragOver: (event: DragEvent<HTMLDivElement>, id: number) => void;
-    onDrop: (event: DragEvent<HTMLDivElement>, targetId: number) => void;
-    onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
-    dropHint: DropPosition | null;
-};
 
 function AccordianCard({id, title, content, onRemove, onDragStart, onDragOver, onDrop, onDragLeave, dropHint}: AccordianCardProps) {
     const [isExpanded, setExpansion] = useState(false);

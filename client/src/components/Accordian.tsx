@@ -48,7 +48,7 @@ function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
     return (
         <div>
             {items.map(item => (
-                <div>
+                <div key={item.id}>
                     <AccordianCard 
                         key={item.id}
                         id={item.id}

@@ -145,6 +145,25 @@ function DateSelector() {
 
     };
 
+    const sendSaveRequest = async () => {
+        try {
+            const response = await fetch('http://localhost:3000/data/', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(dateToItems)
+            });
+
+            if (!response.ok) {
+                throw new Error('Server HTTP error, is server running?');
+            } 
+
+        } catch (err) {
+            console.error('Fetch failed:', err)
+        }
+    };
+
     return (
         <div className='flex flex-col gap-4'>
             <div className='flex justify-between max-w-200 gap-6'>
@@ -164,6 +183,7 @@ function DateSelector() {
                     onMove={handleMove}
                 />
             </div>
+            <button className='bg-gray-200' onClick={sendSaveRequest}>Save</button>
         </div>
     );
 }

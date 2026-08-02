@@ -1,8 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Accordian from './Accordian'
 import { DropPosition, type AccordianItem } from './types';
 
 function DateSelector() {
+
+    const getDateKey = (value: Date) => {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     // note: Date stores month 0 indexed (i.e. 0 is January)
     const [date, setDate] = useState(new Date(2026, 5, 23));
@@ -24,7 +31,7 @@ function DateSelector() {
         setDate(newDate);
     };
 
-    const dateKey = date.toISOString().slice(0, 10); // get rid of hms
+    const dateKey = getDateKey(date);
 
     type Item = Omit<AccordianItem, 'id'>;
 
@@ -40,9 +47,15 @@ function DateSelector() {
         });
     };
 
-    const fetchJSON = async (url: string) => {
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('todoUserId') ?? 'anonymous' : 'anonymous';
+
+    const fetchJSON = useCallback(async (url: string) => {
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: {
+                    'X-User-Id': userId,
+                },
+            });
 
             if (!response.ok) {
                 throw new Error(`Network response not ok: ${response.status}`);
@@ -53,7 +66,7 @@ function DateSelector() {
             console.error('Failed to load JSON:', error);
             return undefined;
         }
-    };
+    }, [userId]);
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -98,7 +111,26 @@ function DateSelector() {
         };
 
         fetchItems();
-    }, []);
+    }, [dateKey, fetchJSON]);
+
+    const sendSaveRequest = async (payload: Record<string, AccordianItem[]> = dateToItems) => {
+        try {
+            const response = await fetch('http://localhost:3000/data/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Id': userId,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error('Server HTTP error, is server running?');
+            }
+        } catch (err) {
+            console.error('Fetch failed:', err);
+        }
+    };
 
     const handleAdd = (item: Item) => {
         setDateToItems(prev => {
@@ -107,21 +139,23 @@ function DateSelector() {
                 ...item,
                 id: uniqueId.current++,
             };
-            return { ...prev, [dateKey]: [...prevItems, newItem] };
+            const next = { ...prev, [dateKey]: [...prevItems, newItem] };
+            void sendSaveRequest(next);
+            return next;
         });
     };
 
     const handleRemove = (id: number) => {
         setDateToItems(prev => {
             const prevItems = prev[dateKey] ?? [];
-            return { ...prev, [dateKey]: prevItems.filter(i => i.id !== id) };
+            const next = { ...prev, [dateKey]: prevItems.filter(i => i.id !== id) };
+            void sendSaveRequest(next);
+            return next;
         });
     };
 
     const handleMove = (sourceId: number, targetId: number, position: DropPosition | null) => {
-
         setDateToItems(prev => {
-
             const prevItems = prev[dateKey] ?? [];
 
             const sourceIndex = prevItems.findIndex(item => item.id === sourceId);
@@ -136,32 +170,15 @@ function DateSelector() {
             if (sourceIndex < targetIndex) {
                 targetIndex -= 1;
             }
-            if (position == DropPosition.BELOW) {
-                targetIndex += 1
+            if (position === DropPosition.BELOW) {
+                targetIndex += 1;
             }
             newItems.splice(targetIndex, 0, movedItem);
-            return {...prev, [dateKey]: newItems};
+
+            const next = { ...prev, [dateKey]: newItems };
+            void sendSaveRequest(next);
+            return next;
         });
-
-    };
-
-    const sendSaveRequest = async () => {
-        try {
-            const response = await fetch('http://localhost:3000/data/', {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(dateToItems)
-            });
-
-            if (!response.ok) {
-                throw new Error('Server HTTP error, is server running?');
-            } 
-
-        } catch (err) {
-            console.error('Fetch failed:', err)
-        }
     };
 
     return (
@@ -183,7 +200,7 @@ function DateSelector() {
                     onMove={handleMove}
                 />
             </div>
-            <button className='bg-gray-200' onClick={sendSaveRequest}>Save</button>
+            <button className='bg-gray-200' onClick={() => void sendSaveRequest()}>Save</button>
         </div>
     );
 }

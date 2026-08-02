@@ -1,26 +1,45 @@
 import './App.css'
+import type { ReactNode } from 'react'
 import DateSelector from './components/DateSelector'
-import  { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import Home from './components/Home'
+import { createBrowserRouter, RouterProvider, useNavigate, Navigate } from 'react-router-dom'
 
-const Home = () => (
-  <div>
-    THe Home
-    LOG IN
-  </div>
-);
+const TodoList = () => {
+  const navigate = useNavigate();
 
-const TodoList = () => (
-  <div className='flex justify-center items-center flex-col gap-2'>
-    <h1 className='bold text-3xl text-center m-5'>THE TODOLIST</h1>
-    <DateSelector />
-  </div>
-);
+  const handleLogout = () => {
+    localStorage.removeItem('todoUserId');
+    navigate('/');
+  };
+
+  return (
+    <div className='flex justify-center items-center flex-col gap-2'>
+      <div className='flex w-full max-w-4xl justify-end px-4 pt-4'>
+        <button
+          onClick={handleLogout}
+          className='rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700'
+        >
+          Log out
+        </button>
+      </div>
+      <h1 className='bold text-3xl text-center m-5'>THE TODOLIST</h1>
+      <DateSelector />
+    </div>
+  );
+};
 
 const LogIn = () => (
   <div>
     LOG IN
   </div>
 );
+
+// RequireAuth: redirect to /login when no logged-in user
+function RequireAuth({ children }: { children: ReactNode }) {
+  const userId = typeof window !== 'undefined' ? localStorage.getItem('todoUserId') : null;
+  if (!userId) return <Navigate to="/login" replace />;
+  return children;
+}
 
 const router = createBrowserRouter([
   {
@@ -33,7 +52,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/list',
-    element: <TodoList />,
+    element: (
+      <RequireAuth>
+        <TodoList />
+      </RequireAuth>
+    ),
   },
 ]);
 

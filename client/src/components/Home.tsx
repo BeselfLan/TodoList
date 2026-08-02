@@ -1,12 +1,13 @@
 import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from './types';
 
 function Home() {
   const navigate = useNavigate();
   console.log('attempting to log in with google');
   const login = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
-      const res = await fetch('http://localhost:3000/auth/google', {
+      const res = await fetch(`${API_URL}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenResponse.access_token }),
@@ -16,6 +17,7 @@ function Home() {
       console.log('server response:', data);
 
       if (res.ok && data.ok) {
+        localStorage.setItem('todoToken', data.token);
         localStorage.setItem('todoUserId', data.userId);
         navigate('/list');
       }

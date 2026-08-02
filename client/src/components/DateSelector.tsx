@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Accordian from './Accordian'
-import { DropPosition, type AccordianItem } from './types';
+import { API_URL, DropPosition, type AccordianItem } from './types';
 
 function DateSelector() {
+
+    
 
     const getDateKey = (value: Date) => {
         const year = value.getFullYear();
@@ -47,13 +49,13 @@ function DateSelector() {
         });
     };
 
-    const userId = typeof window !== 'undefined' ? localStorage.getItem('todoUserId') ?? 'anonymous' : 'anonymous';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('todoToken') ?? '' : '';
 
     const fetchJSON = useCallback(async (url: string) => {
         try {
             const response = await fetch(url, {
                 headers: {
-                    'X-User-Id': userId,
+                    Authorization: `Bearer ${token}`,
                 },
             });
 
@@ -66,11 +68,11 @@ function DateSelector() {
             console.error('Failed to load JSON:', error);
             return undefined;
         }
-    }, [userId]);
+    }, [token]);
 
     useEffect(() => {
         const fetchItems = async () => {
-            const datesResponse = await fetchJSON('http://localhost:3000/data/');
+            const datesResponse = await fetchJSON(`${API_URL}/data/`);
             const dateStrings: string[] = Array.isArray(datesResponse?.dates)
                 ? datesResponse.dates
                 : [];
@@ -86,7 +88,7 @@ function DateSelector() {
                 const paddedDay = day.padStart(2, '0');
                 const itemDateKey = `${year}-${paddedMonth}-${paddedDay}`;
 
-                const json = await fetchJSON(`http://localhost:3000/data/${year}/${paddedMonth}/${paddedDay}`);
+                const json = await fetchJSON(`${API_URL}/data/${year}/${paddedMonth}/${paddedDay}`);
 
                 if (!isAccordianItemArray(json)) {
                     console.error('Unexpected /data/:year/:month/:day payload for', rawDate, json);
@@ -115,11 +117,11 @@ function DateSelector() {
 
     const sendSaveRequest = async (payload: Record<string, AccordianItem[]> = dateToItems) => {
         try {
-            const response = await fetch('http://localhost:3000/data/', {
+            const response = await fetch(`${API_URL}/data/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-Id': userId,
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify(payload),
             });
@@ -200,7 +202,6 @@ function DateSelector() {
                     onMove={handleMove}
                 />
             </div>
-            <button className='bg-gray-200' onClick={() => void sendSaveRequest()}>Save</button>
         </div>
     );
 }

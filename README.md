@@ -64,8 +64,12 @@ docker-compose.yml postgres, server, and client services
    ```bash
    DATABASE_URL=postgres://todolist:todolist@localhost:5432/todolist
    VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+   JWT_SECRET=any-long-random-string
    PORT=3000
    ```
+
+   The server signs session tokens with `JWT_SECRET` and refuses to start without it.
+   Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
 3. Create `client/.env`:
 

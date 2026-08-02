@@ -8,6 +8,7 @@ const TodoList = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    localStorage.removeItem('todoToken');
     localStorage.removeItem('todoUserId');
     navigate('/');
   };
@@ -34,10 +35,10 @@ const LogIn = () => (
   </div>
 );
 
-// RequireAuth: redirect to /login when no logged-in user
+// RequireAuth: redirect to the home page when there is no session token
 function RequireAuth({ children }: { children: ReactNode }) {
-  const userId = typeof window !== 'undefined' ? localStorage.getItem('todoUserId') : null;
-  if (!userId) return <Navigate to="/login" replace />;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('todoToken') : null;
+  if (!token) return <Navigate to="/" replace />;
   return children;
 }
 

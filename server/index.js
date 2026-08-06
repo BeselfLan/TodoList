@@ -118,6 +118,12 @@ app.post('/data', requireAuth, async (req, res) => {
                 if (item === null || typeof item !== 'object' || typeof item.id !== 'number' || typeof item.title !== 'string' || typeof item.content !== 'string') {
                     throw new Error(`Invalid item for date ${rawKey}`);
                 }
+
+                // completed is optional so older clients keep working; anything
+                // other than a boolean is a bug worth rejecting.
+                if (item.completed !== undefined && typeof item.completed !== 'boolean') {
+                    throw new Error(`Invalid completed flag for date ${rawKey}`);
+                }
             }
 
             await saveItemsForDate(userId, dateKey, items);
@@ -169,6 +175,7 @@ app.post('/auth/google', async (req, res) => {
     console.log('successfully sent token to google');
 
     if ('error_description' in data || response.status !== 200) {
+        console.log('ERROR: token format invalid')
         return res.status(401).json({ error: 'invalid token', details: data });
     }
 
@@ -176,6 +183,7 @@ app.post('/auth/google', async (req, res) => {
     console.log('expected:', process.env.VITE_GOOGLE_CLIENT_ID);
 
     if (data.aud !== process.env.VITE_GOOGLE_CLIENT_ID) {
+        console.log("ERROR: token audience mismatch");
         return res.status(401).json({ error: 'token audience mismatch' });
     }
 

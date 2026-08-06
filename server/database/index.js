@@ -10,6 +10,7 @@ const initializeDatabase = async () => {
             date_key TEXT NOT NULL,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
+            completed BOOLEAN NOT NULL DEFAULT FALSE,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
@@ -25,6 +26,8 @@ const initializeDatabase = async () => {
     if (!hasUserIdColumn) {
         await sql`ALTER TABLE todo_items ADD COLUMN user_id TEXT NOT NULL DEFAULT '';`;
     }
+
+    await sql`ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT FALSE;`;
 
     await sql`ALTER TABLE todo_items DROP CONSTRAINT IF EXISTS todo_items_pkey;`;
     await sql`ALTER TABLE todo_items ADD CONSTRAINT todo_items_pkey PRIMARY KEY (user_id, date_key, id);`;
@@ -42,7 +45,7 @@ const listDates = async (userId) => {
 
 const getItemsForDate = async (userId, dateKey) => {
     return sql`
-        SELECT id, title, content
+        SELECT id, title, content, completed
         FROM todo_items
         WHERE user_id = ${userId} AND date_key = ${dateKey}
         ORDER BY sort_order, id
@@ -55,8 +58,8 @@ const saveItemsForDate = async (userId, dateKey, items) => {
 
         for (const [index, item] of items.entries()) {
             await tx`
-                INSERT INTO todo_items (id, user_id, date_key, title, content, sort_order)
-                VALUES (${item.id}, ${userId}, ${dateKey}, ${item.title}, ${item.content}, ${index})
+                INSERT INTO todo_items (id, user_id, date_key, title, content, completed, sort_order)
+                VALUES (${item.id}, ${userId}, ${dateKey}, ${item.title}, ${item.content}, ${item.completed === true}, ${index})
             `;
         }
     });

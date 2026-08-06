@@ -1,0 +1,39 @@
+# Development overrides. Compose loads this automatically on top of
+# docker-compose.yml, so `docker compose up` gives you live reload.
+# For a production-style run, skip it:
+#   docker compose -f docker-compose.yml up --build
+services:
+  postgres:
+    # Reachable from this machine only: 127.0.0.1 accepts packets that
+    # originate on the host, so psql and GUI clients work while nothing on
+    # the network can connect. Omitting the host part would bind 0.0.0.0.
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  server:
+    environment:
+      NODE_ENV: development
+    # node --watch restarts the process when a mounted file changes
+    command: node --watch index.js
+    volumes:
+      - ./server:/app
+      # Anonymous volume: keeps the image's node_modules from being hidden
+      # by the bind mount above, since the host has no node_modules.
+      - /app/node_modules
+
+  client:
+    build:
+      context: ./client
+      # Stop at the Node stage instead of the nginx one, so we can run Vite
+      target: build
+    environment:
+      NODE_ENV: development
+    # --host is required, otherwise Vite only binds inside the container
+    command: npm run dev -- --host
+    # !override replaces the base "5173:80" mapping instead of adding to it
+    # (Compose concatenates port lists by default, which would collide).
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules

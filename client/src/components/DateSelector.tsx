@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Accordian from './Accordian'
-import { API_URL, DropPosition, type AccordianItem } from './types';
+import { API_URL, DropPosition, type AccordianItem, type NewAccordianItem } from './types';
 
 function DateSelector() {
 
@@ -35,19 +35,24 @@ function DateSelector() {
 
     const dateKey = getDateKey(date);
 
-    type Item = Omit<AccordianItem, 'id'>;
-
+    // Rows saved before the completed column existed come back without the flag.
+    type StoredItem = NewAccordianItem & { id: number; completed?: boolean };
 
     // check if provided json is of correct format
-    const isAccordianItemArray = (value: unknown): value is AccordianItem[] => {
+    const isAccordianItemArray = (value: unknown): value is StoredItem[] => {
         return Array.isArray(value) && value.every((item) => {
             return item !== null
                 && typeof item === 'object'
                 && typeof item.id === 'number'
                 && typeof item.title === 'string'
-                && typeof item.content === 'string';
+                && typeof item.content === 'string'
+                && (item.completed === undefined || typeof item.completed === 'boolean');
         });
     };
+
+    const normalizeItems = (items: StoredItem[]): AccordianItem[] => (
+        items.map((item) => ({ ...item, completed: item.completed === true }))
+    );
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('todoToken') ?? '' : '';
 
@@ -92,17 +97,17 @@ function DateSelector() {
 
                 if (!isAccordianItemArray(json)) {
                     console.error('Unexpected /data/:year/:month/:day payload for', rawDate, json);
-                    return [itemDateKey, []] as const;
+                    return [itemDateKey, [] as AccordianItem[]] as const;
                 }
 
-                return [itemDateKey, json] as const;
+                return [itemDateKey, normalizeItems(json)] as const;
             }));
 
             setDateToItems(prev => {
                 const next = { ...prev };
                 for (const [key, items] of allLoaded) {
                     if (items.length > 0) {
-                        next[key] = items as AccordianItem[];   
+                        next[key] = items;
                     }
                 }
                 return next;
@@ -134,12 +139,13 @@ function DateSelector() {
         }
     };
 
-    const handleAdd = (item: Item) => {
+    const handleAdd = (item: NewAccordianItem) => {
         setDateToItems(prev => {
             const prevItems = prev[dateKey] ?? [];
             const newItem: AccordianItem = {
                 ...item,
                 id: uniqueId.current++,
+                completed: false,
             };
             const next = { ...prev, [dateKey]: [...prevItems, newItem] };
             void sendSaveRequest(next);
@@ -151,6 +157,20 @@ function DateSelector() {
         setDateToItems(prev => {
             const prevItems = prev[dateKey] ?? [];
             const next = { ...prev, [dateKey]: prevItems.filter(i => i.id !== id) };
+            void sendSaveRequest(next);
+            return next;
+        });
+    };
+
+    const handleToggle = (id: number) => {
+        setDateToItems(prev => {
+            const prevItems = prev[dateKey] ?? [];
+            const next = {
+                ...prev,
+                [dateKey]: prevItems.map(item => (
+                    item.id === id ? { ...item, completed: !item.completed } : item
+                )),
+            };
             void sendSaveRequest(next);
             return next;
         });
@@ -199,6 +219,7 @@ function DateSelector() {
                     items={dateToItems[dateKey] ?? []}
                     onAdd={handleAdd}
                     onRemove={handleRemove}
+                    onToggle={handleToggle}
                     onMove={handleMove}
                 />
             </div>

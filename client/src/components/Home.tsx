@@ -14,6 +14,7 @@ function Home() {
       });
 
       const data = await res.json();
+      console.log('Login reached server');
       console.log('server response:', data);
 
       if (res.ok && data.ok) {

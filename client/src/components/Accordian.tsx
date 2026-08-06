@@ -3,7 +3,7 @@ import type { FormEvent, DragEvent } from 'react';
 import { DropPosition, type AccordianCardProps, type AccordianProps, type AccordianAddButtonProps } from './types';
 
 
-function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
+function Accordian({ items, onAdd, onRemove, onToggle, onMove}: AccordianProps) {
     const [dragTarget, setDragTarget] = useState<{targetId: number, position: DropPosition} | null>(null);
 
     // handle drag and drop
@@ -54,7 +54,9 @@ function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
                         id={item.id}
                         title={item.title}
                         content={item.content}
+                        completed={item.completed}
                         onRemove={onRemove}
+                        onToggle={onToggle}
                         onDragStart={handleDragStart}
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
@@ -70,7 +72,7 @@ function Accordian({ items, onAdd, onRemove, onMove}: AccordianProps) {
 
 export default Accordian;
 
-function AccordianCard({id, title, content, onRemove, onDragStart, onDragOver, onDrop, onDragLeave, dropHint}: AccordianCardProps) {
+function AccordianCard({id, title, content, completed, onRemove, onToggle, onDragStart, onDragOver, onDrop, onDragLeave, dropHint}: AccordianCardProps) {
     const [isExpanded, setExpansion] = useState(false);
 
     const toggle = () => setExpansion(expanded => !expanded);
@@ -94,7 +96,7 @@ function AccordianCard({id, title, content, onRemove, onDragStart, onDragOver, o
                     {isExpanded && <p>{content}</p>}
                 </div>
                 <div className='bg-blue-100 pl-2 pr-2 max-h-6 min-w-12 flex justify-between'>
-                    <input type='checkbox' />
+                    <input type='checkbox' checked={completed} onChange={() => onToggle(id)} />
                     <button onClick={() => onRemove(id)}>X</button>
                 </div>
             </div>

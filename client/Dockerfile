@@ -3,8 +3,10 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Available to RUN steps below as an env var. Deliberately not promoted with
+# ENV: that would bake an empty value into the image when no build arg is
+# passed, and Vite lets real env vars win over .env files.
 ARG VITE_GOOGLE_CLIENT_ID
-ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
 
 # Install dependencies
 COPY package*.json ./

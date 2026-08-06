@@ -111,15 +111,26 @@ server only allows CORS requests from `http://localhost:5173`, so use those port
 
 ## Running with Docker
 
-To build and run all three services at once:
+To build and run all three services at once, with live reload:
 
 ```bash
 docker compose up --build
 ```
 
-- Client: http://localhost:5173 (nginx serving the production build)
-- Server: http://localhost:3000
+- Client: http://localhost:5173 (Vite dev server, hot module replacement)
+- Server: http://localhost:3000 (`node --watch`, restarts on file change)
 - PostgreSQL: `localhost:5432`
+
+Compose automatically layers `docker-compose.override.yml` on top of `docker-compose.yml`.
+The override bind-mounts `client/` and `server/` into their containers so edits on the host
+take effect immediately.
+
+To run the production setup instead — nginx serving the built client, no mounts, no watchers —
+skip the override explicitly:
+
+```bash
+docker compose -f docker-compose.yml up --build
+```
 
 `server/.env` must exist before running, since Compose loads it for the server service.
 

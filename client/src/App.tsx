@@ -19,6 +19,7 @@ const TodoList = () => {
         <button
           onClick={handleLogout}
           className='rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700'
+          aria-label='Logout-Button'
         >
           Log out
         </button>
@@ -42,7 +43,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
-const router = createBrowserRouter([
+export const routes = [
   {
     path: '/',
     element: <Home />,
@@ -59,7 +60,9 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
   },
-]);
+];
+
+const router = createBrowserRouter(routes);
 
 
 function App() {

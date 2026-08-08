@@ -14,7 +14,7 @@ function DateSelector() {
     };
 
     // note: Date stores month 0 indexed (i.e. 0 is January)
-    const [date, setDate] = useState(new Date(2026, 5, 23));
+    const [date, setDate] = useState(new Date());
 
     const [dateToItems, setDateToItems] = useState<Record<string, AccordianItem[]>>({});
 
@@ -206,13 +206,14 @@ function DateSelector() {
     return (
         <div className='flex flex-col gap-4'>
             <div className='flex justify-between max-w-200 gap-6'>
-                <button className='bg-pink-100 px-1' onClick={() => updateDate(-1)}> &lt; </button>
+                <button className='bg-pink-100 px-1' aria-label="Decrease-Date" onClick={() => updateDate(-1)}> &lt; </button>
                 <input
                     className='bg-blue-100' type="date"
+                    aria-label="Date"
                     value={date.toISOString().slice(0, 10)}
                     onChange={(e) => updateDateFromString(e.target.value)}
                 />
-                <button className='bg-pink-100 px-1' onClick={() => updateDate(1)}> &gt; </button>
+                <button className='bg-pink-100 px-1' aria-label="Increase-Date" onClick={() => updateDate(1)}> &gt; </button>
             </div>
             <div className='ml-5 mr-5'>
                 <Accordian 

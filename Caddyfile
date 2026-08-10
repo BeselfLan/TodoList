@@ -1,0 +1,17 @@
+# Caddy terminates TLS and hands everything to the nginx container, which
+# serves the built client and proxies /api/ on to Express. Layering it this
+# way keeps all the routing in one place (client/nginx.conf) -- Caddy's only
+# job is certificates and HTTPS.
+#
+# DOMAIN comes from the root .env via docker-compose.prod.yml. Caddy reads it
+# at startup, requests a Let's Encrypt certificate for it, redirects HTTP to
+# HTTPS, and renews automatically. Setting DOMAIN=localhost instead makes
+# Caddy issue a cert from its own internal CA, which is useful for testing
+# the stack before a real domain exists.
+{$DOMAIN} {
+	# gzip/zstd for text responses. The JS bundle is the biggest thing this
+	# app serves, and it compresses well.
+	encode gzip zstd
+
+	reverse_proxy client:80
+}

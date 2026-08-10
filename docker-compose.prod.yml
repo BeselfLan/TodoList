@@ -1,0 +1,68 @@
+# Production overrides. Unlike docker-compose.override.yml, Compose does NOT
+# load this automatically -- it has to be named explicitly, which also stops
+# the dev override from being layered on by accident:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Requires DOMAIN in the root .env, e.g. DOMAIN=todo.example.com. It is the
+# single source of truth: Caddy requests a certificate for it, and the server's
+# CLIENT_ORIGIN is derived from it below.
+services:
+  postgres:
+    restart: unless-stopped
+
+  server:
+    restart: unless-stopped
+    environment:
+      # Derived from DOMAIN so the two can never drift apart. This overrides
+      # the CLIENT_ORIGIN in server/.env, which points at the Vite dev server
+      # for running outside Docker. After proxying, the app's own requests are
+      # same-origin and ignore CORS entirely -- this is what keeps *other*
+      # sites from calling the API out of a visitor's browser.
+      CLIENT_ORIGIN: https://${DOMAIN:?missing from .env}
+    # No published ports: nginx reaches this over the compose network at
+    # server:3000. Nothing outside Docker needs to talk to it directly, and
+    # publishing 3000 would expose the API alongside the proxied path,
+    # re-creating the cross-origin surface this setup exists to remove.
+    ports: !override []
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Baked into the bundle at build time -- Vite inlines import.meta.env
+        # during npm run build, so this cannot be changed at runtime. A
+        # relative path makes the browser send API calls to whatever host it
+        # loaded the page from, which is the whole point: same origin, no CORS.
+        VITE_API_URL: /api
+    restart: unless-stopped
+    # Unpublished: Caddy is the only way in now. Leaving 80 mapped here would
+    # serve the whole site over plain HTTP alongside the HTTPS version.
+    ports: !override []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # 80 is not optional even though the site is HTTPS: Let's Encrypt validates
+    # the domain over plain HTTP, and Caddy uses it to redirect to HTTPS.
+    # The UDP mapping enables HTTP/3.
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?missing from .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and ACME account keys live here. This volume MUST persist:
+      # without it every restart re-requests a certificate, and Let's Encrypt
+      # caps duplicate certificates at 5 per week. Blow through that and the
+      # site serves untrusted certs until the window resets.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - client
+
+volumes:
+  caddy-data:
+  caddy-config:

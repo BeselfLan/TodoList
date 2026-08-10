@@ -66,7 +66,12 @@ docker-compose.yml postgres, server, and client services
    VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
    JWT_SECRET=any-long-random-string
    PORT=3000
+   CLIENT_ORIGIN=http://localhost:5173
    ```
+
+   `CLIENT_ORIGIN` is the only browser origin allowed to call the API. It defaults to the
+   Vite dev server, so it can be omitted locally, but it must be set to your real domain
+   when deploying or the browser will block every request.
 
    The server signs session tokens with `JWT_SECRET` and refuses to start without it.
    Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
@@ -125,14 +130,64 @@ Compose automatically layers `docker-compose.override.yml` on top of `docker-com
 The override bind-mounts `client/` and `server/` into their containers so edits on the host
 take effect immediately.
 
-To run the production setup instead — nginx serving the built client, no mounts, no watchers —
-skip the override explicitly:
+`server/.env` must exist before running, since Compose loads it for the server service.
+
+## Running in production
+
+`docker-compose.prod.yml` builds the client for real, serves it with nginx, proxies the API
+through that same nginx so the browser sees a single origin, and puts Caddy in front for
+HTTPS. Name both files explicitly — this also keeps Compose from auto-loading the dev
+override:
 
 ```bash
-docker compose -f docker-compose.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-`server/.env` must exist before running, since Compose loads it for the server service.
+Requests flow like this:
+
+```
+browser ──443──> caddy ──> nginx ──┬─> /        built client from dist/
+                                   └─> /api/*   Express (arrives as /data)
+```
+
+Only Caddy publishes ports. nginx, Express, and PostgreSQL are reachable only inside the
+Compose network.
+
+### Before the first deploy
+
+1. Point your domain at the server with an `A` record (and `AAAA` if you have IPv6). Caddy
+   cannot get a certificate until DNS resolves, so do this first.
+2. Add `DOMAIN` to the root `.env`:
+
+   ```bash
+   DOMAIN=todo.example.com
+   ```
+
+   This is the single source of truth. Caddy requests a certificate for it, and the server's
+   `CLIENT_ORIGIN` is derived from it as `https://$DOMAIN`, overriding the dev value in
+   `server/.env`.
+3. Add `https://your-domain` to the Authorized JavaScript origins of your Google OAuth
+   client — sign-in fails without it.
+
+Caddy obtains a Let's Encrypt certificate on first boot, redirects HTTP to HTTPS, and renews
+automatically. Certificates live in the `caddy-data` volume; keep it, since Let's Encrypt
+caps duplicate certificates at 5 per week.
+
+To exercise the whole stack without a domain, set `DOMAIN=localhost`. Caddy then issues a
+certificate from its own internal CA, so `curl -k https://localhost/` works end to end.
+
+### Notes
+
+Because the client and API share an origin, the browser never treats an API call as
+cross-origin and CORS does not apply to the app's own requests. `CLIENT_ORIGIN` still
+matters — it is what stops *other* sites from calling the API out of a visitor's browser.
+
+The client is built with `VITE_API_URL=/api`. Vite inlines that at build time, so changing it
+means rebuilding the image, not restarting the container.
+
+If `/api/*` returns 502 while the site itself loads, the server container is down — check
+`docker compose logs server`. nginx resolves the backend at request time, so it keeps serving
+the static site instead of failing to start.
 
 ## Available scripts
 

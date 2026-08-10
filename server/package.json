@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "keywords": [],
   "author": "Beself Lan",
@@ -15,5 +17,9 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.10"
   }
 }

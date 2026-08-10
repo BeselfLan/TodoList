@@ -5,3 +5,5 @@ data
 dist
 .git
 .gitignore
+tests
+vitest.config.mjs

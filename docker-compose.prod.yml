@@ -20,6 +20,10 @@ services:
       # same-origin and ignore CORS entirely -- this is what keeps *other*
       # sites from calling the API out of a visitor's browser.
       CLIENT_ORIGIN: https://${DOMAIN:?missing from .env}
+      # Caddy and nginx, in that order. Both append to X-Forwarded-For, so
+      # Express has to skip two entries to find the real client IP. Rate
+      # limiting counts per IP and would be meaningless without this.
+      TRUST_PROXY: 2
     # No published ports: nginx reaches this over the compose network at
     # server:3000. Nothing outside Docker needs to talk to it directly, and
     # publishing 3000 would expose the API alongside the proxied path,

@@ -15,6 +15,7 @@ Each signed-in user gets their own lists, stored per date in PostgreSQL.
 | Language | TypeScript |
 | Styling | Tailwind CSS |
 | Auth | `@react-oauth/google` (Google OAuth) |
+| Testing | Vitest + Testing Library |
 | Linting | ESLint |
 
 **Backend** (`server/`)
@@ -24,24 +25,37 @@ Each signed-in user gets their own lists, stored per date in PostgreSQL.
 | Runtime | Node.js |
 | Framework | Express 5 |
 | Database | PostgreSQL (via the `postgres` client) |
+| Sessions | JWT (`jsonwebtoken`), issued after Google verifies the user |
+| Rate limiting | `express-rate-limit` on the sign-in route |
+| Testing | Vitest + supertest |
 | Config | dotenv |
 
 **Infrastructure**
 
 | | |
 | --- | --- |
-| Containers | Docker Compose (postgres + server + client) |
-| Prod web server | nginx (serves the built client) |
+| Containers | Docker Compose (postgres + server + client, plus caddy in production) |
+| Prod web server | nginx — serves the built client and proxies `/api/*` to the server |
+| TLS | Caddy — automatic Let's Encrypt certificates and HTTP→HTTPS redirect |
 
 ## Project structure
 
 ```
-client/            React + Vite frontend
-  src/components/  Home, LogIn, TodoList, Accordian, DateSelector
+client/
+  src/components/            Home, LogIn, TodoList, Accordian, DateSelector
+  src/tests/                 Component and routing tests
+  Dockerfile                 Two stages: Vite build, then nginx serving the result
+  nginx.conf                 Serves the built client, proxies /api/* to the server
 server/
-  index.js         Express app and routes
-  database/        PostgreSQL schema setup and queries
-docker-compose.yml postgres, server, and client services
+  index.js                   Entrypoint: opens the database, then starts listening
+  app.js                     Express app and routes, built by a factory so tests
+                             can inject a fake database
+  database/                  PostgreSQL schema setup and queries
+  tests/                     API tests
+Caddyfile                    TLS and HTTPS redirect, production only
+docker-compose.yml           Base: postgres, server, client
+docker-compose.override.yml  Development: live reload. Loaded automatically
+docker-compose.prod.yml      Production: built client, Caddy, no exposed app ports
 ```
 
 ## Prerequisites
@@ -59,7 +73,20 @@ docker-compose.yml postgres, server, and client services
    cd TodoList
    ```
 
-2. Create `server/.env`:
+2. Create `.env` in the repository root. Docker Compose reads this one to fill in the
+   `${...}` placeholders in `docker-compose.yml`, so any `docker compose` command fails
+   without it:
+
+   ```bash
+   POSTGRES_DB=todolist
+   POSTGRES_USER=todolist
+   POSTGRES_PASSWORD=generate-your-own
+   ```
+
+   Generate the password with `openssl rand -hex 24`. `DOMAIN` also belongs here, but only
+   matters in production — see [Running in production](#running-in-production).
+
+3. Create `server/.env`. This is the file the Node process itself loads, via dotenv:
 
    ```bash
    DATABASE_URL=postgres://todolist:todolist@localhost:5432/todolist
@@ -76,14 +103,15 @@ docker-compose.yml postgres, server, and client services
    The server signs session tokens with `JWT_SECRET` and refuses to start without it.
    Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 
-3. Create `client/.env`:
+4. Create `client/.env`:
 
    ```bash
    VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
    ```
 
-   Both files are gitignored. The client ID must match in both, since the server verifies
-   that the token audience matches its own `VITE_GOOGLE_CLIENT_ID`.
+   All three `.env` files are gitignored. The client ID must match in `server/.env` and
+   `client/.env`, since the server verifies that the token audience matches its own
+   `VITE_GOOGLE_CLIENT_ID`.
 
 ## Running in development
 
@@ -130,7 +158,15 @@ Compose automatically layers `docker-compose.override.yml` on top of `docker-com
 The override bind-mounts `client/` and `server/` into their containers so edits on the host
 take effect immediately.
 
-`server/.env` must exist before running, since Compose loads it for the server service.
+All three ports are published on `127.0.0.1` rather than every interface, so nothing is
+reachable from the network. On a remote machine, forward the port over SSH instead:
+
+```bash
+ssh -L 5173:localhost:5173 you@your-server
+```
+
+Both `.env` and `server/.env` must exist before running: Compose reads the first for the
+Postgres credentials and passes the second to the server service.
 
 ## Running in production
 
@@ -185,6 +221,13 @@ matters — it is what stops *other* sites from calling the API out of a visitor
 The client is built with `VITE_API_URL=/api`. Vite inlines that at build time, so changing it
 means rebuilding the image, not restarting the container.
 
+`POST /auth/google` is capped at 10 requests per IP per 15 minutes. It is the only
+unauthenticated route and it calls Google on every request, so an uncapped one lets anyone
+use this server to hammer Google's tokeninfo endpoint. Counting per IP only works because
+`TRUST_PROXY=2` tells Express how many proxies (Caddy, then nginx) sit in front of it —
+without that, every request looks like it came from nginx and one visitor's burst would
+lock out everyone.
+
 If `/api/*` returns 502 while the site itself loads, the server container is down — check
 `docker compose logs server`. nginx resolves the backend at request time, so it keeps serving
 the static site instead of failing to start.
@@ -199,21 +242,59 @@ Run these from `client/`:
 | `npm run build` | Type-check and build for production |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
+| `npm test` | Run the component and routing tests in watch mode |
+| `npm run test:run` | Run them once and exit |
 
-The server has no build step — run it with `node index.js`.
+And from `server/`:
+
+| Command | Description |
+| --- | --- |
+| `npm start` | Start the API (`node index.js`) |
+| `npm test` | Run the API tests in watch mode |
+| `npm run test:run` | Run them once and exit |
+
+The server has no build step.
+
+## Testing
+
+```bash
+cd server && npm run test:run
+cd client && npm run test:run
+```
+
+Neither suite needs a database or a network. `server/app.js` exports a factory rather than a
+ready-made app, so the tests call `createApp({ db })` with a fake database — the real
+`./database` module is never imported, and `server/tests/setup.js` refuses to run if
+`DATABASE_URL` points anywhere that isn't local.
 
 ## API
 
-| Method | Route | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Health check |
-| `GET` | `/data` | List all dates that have items for the user |
-| `POST` | `/data` | Save items, keyed by date (`YYYY/MM/DD` or `YYYY-MM-DD`) |
-| `GET` | `/data/:year/:month/:day` | Get the items for one date |
-| `POST` | `/auth/google` | Verify a Google access token and return the user ID |
+| Method | Route | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/health` | — | Health check |
+| `POST` | `/auth/google` | — | Exchange a Google access token for a session token |
+| `GET` | `/data` | Bearer | List all dates that have items for the signed-in user |
+| `POST` | `/data` | Bearer | Save items, keyed by date (`YYYY/MM/DD` or `YYYY-MM-DD`) |
+| `GET` | `/data/:year/:month/:day` | Bearer | Get the items for one date |
 
-Requests identify the user with an `x-user-id` header (or a `userId` query/body field);
-requests without one fall back to the `anonymous` user.
+Sign-in works in two steps. The client sends its Google access token to `/auth/google`, which
+verifies it with Google and checks that the audience matches `VITE_GOOGLE_CLIENT_ID`. It then
+returns a session token — a JWT this server signs itself with `JWT_SECRET`, valid for 7 days.
+Every later request carries it:
+
+```
+Authorization: Bearer <token>
+```
+
+The user id is read from that token's `sub` claim and never from anything else the client
+sends, so a request cannot ask for another user's data. Requests with no token, a token
+signed with a different secret, or an expired one get a `401` and never reach the database.
+
+`/auth/google` allows 10 requests per IP per 15 minutes; going over returns `429`.
+
+In production every route sits behind `/api`, since nginx strips that prefix before
+forwarding — `GET https://your-domain/api/data` arrives at Express as `GET /data`. Running
+the server directly, there is no prefix.
 
 ## License
 

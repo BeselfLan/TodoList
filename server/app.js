@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
 const SESSION_LIFETIME = '7d';
 
@@ -68,6 +69,15 @@ const createApp = ({
         origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
         optionSuccessStatus: 200,
     };
+
+    // How many proxies sit in front of this server, so Express can pull the
+    // real client IP off X-Forwarded-For. Rate limiting is useless without it:
+    // behind Caddy and nginx every request arrives from the proxy's address, so
+    // the limiter would bucket all visitors together and lock the world out on
+    // the first burst. The default of 0 is for running the server directly,
+    // where the header must not be trusted -- anyone could forge it and give
+    // themselves a fresh quota. docker-compose.prod.yml sets 2 (Caddy, nginx).
+    app.set('trust proxy', Number(process.env.TRUST_PROXY) || 0);
 
     app.use(cors(corsOptions));
     app.use(express.json());
@@ -166,7 +176,25 @@ const createApp = ({
         }
     });
 
-    app.post('/auth/google', async (req, res) => {
+    // The only unauthenticated route, and the only one that calls out to
+    // another service: every request makes this server fetch Google's
+    // tokeninfo endpoint. Uncapped, anyone could loop it and use this server to
+    // hammer Google on their behalf, which gets our IP throttled by them.
+    // Signing in is rare -- a session lasts SESSION_LIFETIME -- so 10 attempts
+    // per quarter hour leaves plenty of room for a user retrying a failure.
+    //
+    // The counters live in memory, so they reset on restart and each container
+    // keeps its own. Fine for one instance; running several would need a shared
+    // store to enforce a single limit across them.
+    const authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 10,
+        standardHeaders: 'draft-8',
+        legacyHeaders: false,
+        message: { status: 'error', message: 'Too many sign-in attempts. Please try again later.' },
+    });
+
+    app.post('/auth/google', authLimiter, async (req, res) => {
         const { token } = req.body;
 
         if (!token) {

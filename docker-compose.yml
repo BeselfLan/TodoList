@@ -30,8 +30,13 @@ services:
 
   server:
     build: ./server
+    # Loopback only. Without the 127.0.0.1 prefix Docker binds every interface,
+    # which on a host with a public IP puts the API straight on the internet --
+    # bypassing nginx, Caddy, and TLS. Reach it from another machine with an SSH
+    # tunnel instead. Note this has no effect on the other containers: they talk
+    # to server:3000 over the compose network, not through a published port.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NODE_ENV: production
       # Built from the same .env values so the password lives in one place.
@@ -52,8 +57,9 @@ services:
   client:
     build:
       context: ./client
+    # Loopback only, for the same reason as the server above.
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
     environment:
       NODE_ENV: production
     depends_on:

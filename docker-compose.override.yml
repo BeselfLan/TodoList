@@ -1,7 +1,7 @@
 # Development overrides. Compose loads this automatically on top of
 # docker-compose.yml, so `docker compose up` gives you live reload.
-# For a production-style run, skip it:
-#   docker compose -f docker-compose.yml up --build
+# For a real production run, name the files explicitly so this one is skipped:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 services:
   postgres:
     # Reachable from this machine only: 127.0.0.1 accepts packets that
@@ -30,10 +30,13 @@ services:
       NODE_ENV: development
     # --host is required, otherwise Vite only binds inside the container
     command: npm run dev -- --host
-    # !override replaces the base "5173:80" mapping instead of adding to it
-    # (Compose concatenates port lists by default, which would collide).
+    # !override replaces the base mapping instead of adding to it (Compose
+    # concatenates port lists by default, which would collide). Loopback only,
+    # matching the base file -- the --host above is about binding inside the
+    # container, which Docker needs to reach it at all, and says nothing about
+    # which host interfaces the port is published on.
     ports: !override
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./client:/app
       - /app/node_modules

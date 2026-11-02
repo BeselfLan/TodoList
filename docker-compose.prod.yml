@@ -4,9 +4,10 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Requires DOMAIN in the root .env, e.g. DOMAIN=todo.example.com. It is the
-# single source of truth: Caddy requests a certificate for it, and the server's
-# CLIENT_ORIGIN is derived from it below.
+# Requires DOMAIN in the root .env, e.g. DOMAIN=todo.example.com; the server's
+# CLIENT_ORIGIN is derived from it below. HTTPS is handled by the server-wide
+# Caddy in /root/home/edge, whose Caddyfile must have a matching site block,
+# and the edge network must exist first (docker network create edge).
 services:
   postgres:
     restart: unless-stopped
@@ -40,33 +41,19 @@ services:
         # loaded the page from, which is the whole point: same origin, no CORS.
         VITE_API_URL: /api
     restart: unless-stopped
-    # Unpublished: Caddy is the only way in now. Leaving 80 mapped here would
-    # serve the whole site over plain HTTP alongside the HTTPS version.
+    # Unpublished: the shared Caddy in /root/home/edge is the only way in.
+    # Leaving 80 mapped here would serve the whole site over plain HTTP
+    # alongside the HTTPS version.
     ports: !override []
+    # "edge" is the server-wide network that Caddy (/root/home/edge) sits on;
+    # it reaches this container as todolist-client:80. TLS, certificates and
+    # access logs for DOMAIN are configured there, not in this repo.
+    networks:
+      default:
+      edge:
+        aliases:
+          - todolist-client
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    # 80 is not optional even though the site is HTTPS: Let's Encrypt validates
-    # the domain over plain HTTP, and Caddy uses it to redirect to HTTPS.
-    # The UDP mapping enables HTTP/3.
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      DOMAIN: ${DOMAIN:?missing from .env}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates and ACME account keys live here. This volume MUST persist:
-      # without it every restart re-requests a certificate, and Let's Encrypt
-      # caps duplicate certificates at 5 per week. Blow through that and the
-      # site serves untrusted certs until the window resets.
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - client
-
-volumes:
-  caddy-data:
-  caddy-config:
+networks:
+  edge:
+    external: true

@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent, DragEvent } from 'react';
+import { ChevronDownIcon, CloseIcon, GripIcon } from './Icons';
 import { DropPosition, type AccordianCardProps, type AccordianProps, type AccordianAddButtonProps } from './types';
 
 
-function Accordian({ items, onAdd, onRemove, onToggle, onMove}: AccordianProps) {
+function Accordian({ items, loading = false, onAdd, onRemove, onToggle, onMove}: AccordianProps) {
     const [dragTarget, setDragTarget] = useState<{targetId: number, position: DropPosition} | null>(null);
+    const [draggingId, setDraggingId] = useState<number | null>(null);
 
     // handle drag and drop
     const handleDragStart = (event: DragEvent<HTMLDivElement>, id: number) => {
         event.dataTransfer.setData('text/plain', id.toString());
         event.dataTransfer.effectAllowed = 'move';
         setDragTarget(null);
+        setDraggingId(id);
     };
 
     const handleDragOver = (event: DragEvent<HTMLDivElement>, id: number) => {
@@ -45,26 +48,39 @@ function Accordian({ items, onAdd, onRemove, onToggle, onMove}: AccordianProps) 
         setDragTarget(null);
     }
 
+    // Also fires when a drag is cancelled, which never reaches handleDrop
+    const handleDragEnd = () => {
+        setDragTarget(null);
+        setDraggingId(null);
+    };
+
     return (
-        <div>
-            {items.map(item => (
-                <div key={item.id}>
-                    <AccordianCard 
-                        key={item.id}
-                        id={item.id}
-                        title={item.title}
-                        content={item.content}
-                        completed={item.completed}
-                        onRemove={onRemove}
-                        onToggle={onToggle}
-                        onDragStart={handleDragStart}
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        onDragLeave={handleDragLeave}
-                        dropHint={dragTarget?.targetId == item.id ? dragTarget?.position : null}
-                    />
-                </div>
-            ))}
+        <div className='@container'>
+            {items.length === 0 ? (
+                <AccordianEmpty loading={loading} />
+            ) : (
+                <ul className='border-t border-line'>
+                    {items.map(item => (
+                        <li key={item.id}>
+                            <AccordianCard
+                                id={item.id}
+                                title={item.title}
+                                content={item.content}
+                                completed={item.completed}
+                                onRemove={onRemove}
+                                onToggle={onToggle}
+                                onDragStart={handleDragStart}
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onDragLeave={handleDragLeave}
+                                onDragEnd={handleDragEnd}
+                                dropHint={dragTarget?.targetId == item.id && draggingId !== item.id ? dragTarget?.position : null}
+                                isDragging={draggingId === item.id}
+                            />
+                        </li>
+                    ))}
+                </ul>
+            )}
             <AccordianAddButton onAdd={onAdd}/>
         </div>
     );
@@ -72,7 +88,29 @@ function Accordian({ items, onAdd, onRemove, onToggle, onMove}: AccordianProps) 
 
 export default Accordian;
 
-function AccordianCard({id, title, content, completed, onRemove, onToggle, onDragStart, onDragOver, onDrop, onDragLeave, dropHint}: AccordianCardProps) {
+function AccordianEmpty({ loading }: { loading: boolean }) {
+    if (loading) {
+        return (
+            <div className='border-t border-line' aria-hidden='true'>
+                {[60, 45, 70].map(width => (
+                    <div key={width} className='flex items-center gap-3 border-b border-line py-4 pl-7'>
+                        <div className='size-6 rounded bg-wash motion-safe:animate-pulse'></div>
+                        <div className='h-4 rounded bg-wash motion-safe:animate-pulse' style={{ width: `${width}%` }}></div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className='rounded-md bg-wash px-6 py-12 text-center'>
+            <p className='font-display text-2xl font-bold'>A blank page.</p>
+            <p className='mt-1 text-muted'>Add the first thing for this day below.</p>
+        </div>
+    );
+}
+
+function AccordianCard({id, title, content, completed, onRemove, onToggle, onDragStart, onDragOver, onDrop, onDragLeave, onDragEnd, dropHint, isDragging}: AccordianCardProps) {
     const [isExpanded, setExpansion] = useState(false);
 
     const toggle = () => setExpansion(expanded => !expanded);
@@ -84,30 +122,55 @@ function AccordianCard({id, title, content, completed, onRemove, onToggle, onDra
         onDragOver={(event) => onDragOver(event, id)}
         onDrop={(event) => onDrop(event, id)}
         onDragLeave={onDragLeave}
-        className='border-5 mb-1'
+        onDragEnd={onDragEnd}
+        className={`group relative border-b border-line transition-colors hover:bg-wash motion-safe:animate-row-in ${isDragging ? 'opacity-40' : ''}`}
         >
-            {dropHint === DropPosition.ABOVE && <div className='h-1 w-full bg-blue-200'></div>}
-            <div className='flex justify-between cursor-move'>
-                <div
-                className='bg-red-100 pl-1'
-                role='button' // this is for aria, treats the div as a button
-                onClick={toggle}>
-                    <h1>{title}</h1>
-                    {isExpanded && <p>{content}</p>}
+            {/* Positioned over the border so showing it never shifts the list mid-drag */}
+            {dropHint === DropPosition.ABOVE && <div className='absolute inset-x-0 -top-0.5 z-10 h-1 bg-marigold'></div>}
+            <div className='flex items-start gap-2 py-3 pr-1'>
+                <GripIcon className='mt-0.5 size-5 shrink-0 cursor-grab text-muted opacity-50 transition-opacity group-hover:opacity-100' />
+                <input
+                    type='checkbox'
+                    className='task-check'
+                    checked={completed}
+                    onChange={() => onToggle(id)}
+                    aria-label={`Mark ${title} as done`}
+                />
+                <div className='min-w-0 flex-1 pl-1'>
+                    <button
+                        type='button'
+                        className='flex w-full items-start justify-between gap-2 text-left'
+                        aria-expanded={isExpanded}
+                        onClick={toggle}
+                    >
+                        <span className={`min-w-0 text-lg leading-6 font-medium wrap-break-word transition-colors ${completed ? 'text-muted line-through' : ''}`}>
+                            {title}
+                        </span>
+                        <ChevronDownIcon className={`mt-0.5 size-5 shrink-0 text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isExpanded && <p className='mt-1.5 pr-7 pb-1 wrap-break-word text-muted motion-safe:animate-row-in'>{content}</p>}
                 </div>
-                <div className='bg-blue-100 pl-2 pr-2 max-h-6 min-w-12 flex justify-between'>
-                    <input type='checkbox' checked={completed} onChange={() => onToggle(id)} />
-                    <button onClick={() => onRemove(id)}>X</button>
-                </div>
+                <button
+                    type='button'
+                    className='grid size-6 shrink-0 place-items-center rounded text-muted transition hover:bg-carbon/10 hover:text-ink'
+                    aria-label={`Remove ${title}`}
+                    onClick={() => onRemove(id)}
+                >
+                    <CloseIcon className='size-4' />
+                </button>
             </div>
-            {dropHint === DropPosition.BELOW && <div className='h-1 w-full bg-blue-200'></div>}
+            {dropHint === DropPosition.BELOW && <div className='absolute inset-x-0 -bottom-0.5 z-10 h-1 bg-marigold'></div>}
         </div>
     );
 }
 
+const labelStyle = 'mb-1.5 block text-sm font-semibold';
+const inputStyle = 'h-11 w-full rounded-md border border-line bg-transparent px-3 transition-colors placeholder:text-muted hover:border-muted focus:border-ink focus:outline-none';
+
 function AccordianAddButton({ onAdd }: AccordianAddButtonProps) {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const titleInput = useRef<HTMLInputElement>(null);
 
     const handleTitle = (event: FormEvent<HTMLInputElement>) => {
         setTitle((event.target as HTMLInputElement).value);
@@ -125,15 +188,20 @@ function AccordianAddButton({ onAdd }: AccordianAddButtonProps) {
         onAdd({ title: title.trim(), content: content.trim() });
         setTitle('');
         setContent('');
+        titleInput.current?.focus();
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <label htmlFor="title">Title</label>
-            <input id="title" type='text' value={title} onChange={handleTitle} className='border ml-2' />
-            <label htmlFor="content" className='ml-2'>Content</label>
-            <input id="content" type='text' value={content} onChange={handleContent} className='border ml-2 mr-2' />
-            <button type='submit' className='bg-amber-400 p-2'>Add Item</button>
+        <form onSubmit={handleSubmit} className='mt-8 grid gap-4 @xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] @xl:items-end'>
+            <div>
+                <label htmlFor="title" className={labelStyle}>Title</label>
+                <input id="title" ref={titleInput} type='text' required placeholder='What needs doing?' value={title} onChange={handleTitle} className={inputStyle} />
+            </div>
+            <div>
+                <label htmlFor="content" className={labelStyle}>Content</label>
+                <input id="content" type='text' required placeholder='The details' value={content} onChange={handleContent} className={inputStyle} />
+            </div>
+            <button type='submit' className='h-11 rounded-md bg-marigold px-5 font-semibold text-carbon transition hover:brightness-105 active:brightness-95'>Add Item</button>
         </form>
     );
 }

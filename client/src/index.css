@@ -1,1 +1,123 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* The calendar page. Stays the same in both themes, so anything printed on
+     it uses carbon rather than ink. */
+  --color-marigold: #f9b81a;
+  --color-carbon: #16140f;
+
+  /* The list side. These are the tokens the dark theme swaps out below. */
+  --color-paper: #fbfaf6;
+  --color-ink: #16140f;
+  --color-muted: #6b675c;
+  --color-line: #e4e0d4;
+  --color-wash: #f3f0e6;
+
+  --animate-page-in: page-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-row-in: row-in 180ms ease-out;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) rotate(-1.5deg);
+    }
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+}
+
+/* index.html sets data-theme before first paint, from the saved choice or the
+   system preference. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-marigold: #eeab0c;
+  --color-paper: #15140f;
+  --color-ink: #f4f1e8;
+  --color-muted: #a39e90;
+  --color-line: #322f27;
+  --color-wash: #211f18;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Tailwind's reset drops the pointer cursor from buttons. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* The punched holes where the page would tear off. Circles in the paper
+     colour sit centred on the edge, so only their inner half shows. */
+  .tear-edge {
+    position: relative;
+  }
+
+  .tear-edge::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 -7px;
+    height: 14px;
+    background: radial-gradient(circle, var(--color-paper) 6px, transparent 6.5px) 0 0 / 22px 14px repeat-x;
+  }
+
+  @media (min-width: 64rem) {
+    .tear-edge::after {
+      inset: 0 -7px 0 auto;
+      width: 14px;
+      height: auto;
+      background-size: 14px 22px;
+      background-repeat: repeat-y;
+    }
+  }
+
+  .task-check {
+    appearance: none;
+    display: grid;
+    flex: none;
+    place-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--color-ink);
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background-color 120ms;
+  }
+
+  .task-check::before {
+    content: '';
+    width: 0.875rem;
+    height: 0.875rem;
+    background-color: var(--color-carbon);
+    clip-path: polygon(14% 44%, 0 59%, 40% 100%, 100% 19%, 85% 6%, 38% 69%);
+    transform: scale(0);
+    transition: transform 120ms;
+  }
+
+  .task-check:checked {
+    background-color: var(--color-marigold);
+  }
+
+  .task-check:checked::before {
+    transform: scale(1);
+  }
+}

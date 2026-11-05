@@ -2,6 +2,7 @@ import './App.css'
 import type { ReactNode } from 'react'
 import DateSelector from './components/DateSelector'
 import Home from './components/Home'
+import ThemeToggle from './components/ThemeToggle'
 import { createBrowserRouter, RouterProvider, useNavigate, Navigate } from 'react-router-dom'
 
 const TodoList = () => {
@@ -14,17 +15,17 @@ const TodoList = () => {
   };
 
   return (
-    <div className='flex justify-center items-center flex-col gap-2'>
-      <div className='flex w-full max-w-4xl justify-end px-4 pt-4'>
+    <div className='relative min-h-dvh'>
+      <div className='absolute top-3 right-3 z-10 flex items-center gap-1 text-carbon lg:top-4 lg:right-6 lg:text-ink'>
+        <ThemeToggle />
         <button
           onClick={handleLogout}
-          className='rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700'
+          className='rounded-md px-3 py-2 text-sm font-semibold transition hover:bg-carbon/10 lg:hover:bg-wash'
           aria-label='Logout-Button'
         >
           Log out
         </button>
       </div>
-      <h1 className='bold text-3xl text-center m-5'>THE TODOLIST</h1>
       <DateSelector />
     </div>
   );

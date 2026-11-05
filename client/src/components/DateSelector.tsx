@@ -1,36 +1,53 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Accordian from './Accordian'
+import DayHero from './DayHero';
+import { ArrowLeftIcon, ArrowRightIcon } from './Icons';
 import { API_URL, DropPosition, type AccordianItem, type NewAccordianItem } from './types';
 
+const getDateKey = (value: Date) => {
+    const year = String(value.getFullYear()).padStart(4, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const shiftDays = (value: Date, numDays: number) => {
+    const newDate = new Date(value);
+    newDate.setDate(newDate.getDate() + numDays);
+    return newDate;
+};
+
+// "Today's list" close to now, otherwise named after the weekday
+const getListHeading = (value: Date) => {
+    const today = new Date();
+    const key = getDateKey(value);
+
+    if (key === getDateKey(today)) return "Today's list";
+    if (key === getDateKey(shiftDays(today, 1))) return "Tomorrow's list";
+    if (key === getDateKey(shiftDays(today, -1))) return "Yesterday's list";
+    return `${value.toLocaleDateString(undefined, { weekday: 'long' })}'s list`;
+};
+
 function DateSelector() {
-
-    
-
-    const getDateKey = (value: Date) => {
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const day = String(value.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
 
     // note: Date stores month 0 indexed (i.e. 0 is January)
     const [date, setDate] = useState(new Date());
 
     const [dateToItems, setDateToItems] = useState<Record<string, AccordianItem[]>>({});
 
+    const [loading, setLoading] = useState(true);
+
     const uniqueId = useRef(0);
 
     const updateDate = (numDays: number) => (
-        setDate((prevDate) => {
-            const newDate = new Date(prevDate);
-            newDate.setDate(newDate.getDate() + numDays);
-            return newDate;
-        })
+        setDate((prevDate) => shiftDays(prevDate, numDays))
     );
 
     const updateDateFromString = (value: string) => {
-        const newDate = new Date(value);
-        setDate(newDate);
+        // The input reports '' while its value is incomplete or cleared
+        if (!value) return;
+        // A bare YYYY-MM-DD would parse as UTC, the day before in the Americas
+        setDate(new Date(`${value}T00:00:00`));
     };
 
     const dateKey = getDateKey(date);
@@ -117,7 +134,7 @@ function DateSelector() {
             uniqueId.current = currentItems.reduce((nextId, item) => Math.max(nextId, item.id), 0) + 1;
         };
 
-        fetchItems();
+        fetchItems().finally(() => setLoading(false));
     }, [dateKey, fetchJSON]);
 
     const sendSaveRequest = async (payload: Record<string, AccordianItem[]> = dateToItems) => {
@@ -203,27 +220,113 @@ function DateSelector() {
         });
     };
 
+    const items = dateToItems[dateKey] ?? [];
+    const doneCount = items.filter(item => item.completed).length;
+    const isToday = dateKey === getDateKey(new Date());
+
     return (
-        <div className='flex flex-col gap-4'>
-            <div className='flex justify-between max-w-200 gap-6'>
-                <button className='bg-pink-100 px-1' aria-label="Decrease-Date" onClick={() => updateDate(-1)}> &lt; </button>
-                <input
-                    className='bg-blue-100' type="date"
-                    aria-label="Date"
-                    value={date.toISOString().slice(0, 10)}
-                    onChange={(e) => updateDateFromString(e.target.value)}
-                />
-                <button className='bg-pink-100 px-1' aria-label="Increase-Date" onClick={() => updateDate(1)}> &gt; </button>
-            </div>
-            <div className='ml-5 mr-5'>
-                <Accordian 
-                    items={dateToItems[dateKey] ?? []}
-                    onAdd={handleAdd}
-                    onRemove={handleRemove}
-                    onToggle={handleToggle}
-                    onMove={handleMove}
-                />
-            </div>
+        <div className='lg:grid lg:min-h-dvh lg:grid-cols-[minmax(22rem,30rem)_minmax(0,1fr)]'>
+            <aside className='tear-edge flex flex-col gap-6 bg-marigold px-5 pt-5 pb-8 text-carbon lg:sticky lg:top-0 lg:h-dvh lg:justify-between lg:px-10 lg:py-8'>
+                <h1 className='py-2 font-display text-sm font-extrabold tracking-[0.2em] lg:py-0'>THE TODOLIST</h1>
+                <DayHero date={date} />
+                <div className='flex flex-col gap-4'>
+                    <WeekStrip date={date} dateToItems={dateToItems} onSelect={setDate} />
+                    <div className='flex flex-wrap items-center gap-2'>
+                        <button className={stepStyle} aria-label="Decrease-Date" onClick={() => updateDate(-1)}>
+                            <ArrowLeftIcon className='size-5' />
+                        </button>
+                        <input
+                            className='h-10 min-w-0 flex-1 rounded-md border-2 border-carbon bg-transparent px-2 font-medium scheme-light'
+                            type="date"
+                            aria-label="Date"
+                            value={dateKey}
+                            onChange={(e) => updateDateFromString(e.target.value)}
+                        />
+                        <button className={stepStyle} aria-label="Increase-Date" onClick={() => updateDate(1)}>
+                            <ArrowRightIcon className='size-5' />
+                        </button>
+                        {/* Disabled rather than hidden, so the arrows never shift between clicks */}
+                        <button
+                            className='h-10 rounded-md bg-carbon px-3 text-sm font-semibold text-marigold transition hover:opacity-85 disabled:opacity-30 max-[359px]:w-full'
+                            disabled={isToday}
+                            onClick={() => setDate(new Date())}
+                        >
+                            Today
+                        </button>
+                    </div>
+                </div>
+            </aside>
+            <main className='px-5 pt-10 pb-16 lg:px-12 lg:pt-20'>
+                <div className='mx-auto max-w-2xl'>
+                    <div className='mb-5 flex items-baseline justify-between gap-4'>
+                        <h2 className='font-display text-3xl font-extrabold tracking-tight sm:text-4xl'>{getListHeading(date)}</h2>
+                        {items.length > 0 && (
+                            <p className='shrink-0 font-medium text-muted'>
+                                {doneCount === items.length ? 'All done' : `${doneCount} of ${items.length} done`}
+                            </p>
+                        )}
+                    </div>
+                    {items.length > 0 && (
+                        <div className='mb-6 h-2 overflow-hidden rounded-full bg-wash' aria-hidden='true'>
+                            <div
+                                className='h-full rounded-full bg-marigold transition-[width] duration-300'
+                                style={{ width: `${(doneCount / items.length) * 100}%` }}
+                            ></div>
+                        </div>
+                    )}
+                    <Accordian
+                        items={items}
+                        loading={loading}
+                        onAdd={handleAdd}
+                        onRemove={handleRemove}
+                        onToggle={handleToggle}
+                        onMove={handleMove}
+                    />
+                </div>
+            </main>
+        </div>
+    );
+}
+
+const stepStyle = 'grid size-10 shrink-0 place-items-center rounded-md border-2 border-carbon transition hover:bg-carbon hover:text-marigold';
+
+type WeekStripProps = {
+    date: Date;
+    dateToItems: Record<string, AccordianItem[]>;
+    onSelect: (date: Date) => void;
+};
+
+// The Sunday-to-Saturday week around the selected date. A dot marks each day
+// that already has items.
+function WeekStrip({ date, dateToItems, onSelect }: WeekStripProps) {
+    const selectedKey = getDateKey(date);
+    const todayKey = getDateKey(new Date());
+    const days = Array.from({ length: 7 }, (_, index) => shiftDays(date, index - date.getDay()));
+
+    return (
+        <div className='grid grid-cols-7 gap-1'>
+            {days.map(day => {
+                const key = getDateKey(day);
+                const isSelected = key === selectedKey;
+                const hasItems = (dateToItems[key]?.length ?? 0) > 0;
+
+                return (
+                    <button
+                        key={key}
+                        onClick={() => onSelect(day)}
+                        className={`flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${isSelected ? 'bg-carbon text-marigold' : 'hover:bg-carbon/10'}`}
+                        aria-label={day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                        aria-pressed={isSelected}
+                        aria-current={key === todayKey ? 'date' : undefined}
+                    >
+                        <span className='text-xs font-semibold'>{day.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>
+                        <span className={`font-display text-lg leading-6 font-bold ${key === todayKey && !isSelected ? 'underline decoration-2 underline-offset-2' : ''}`}>
+                            {day.getDate()}
+                        </span>
+                        <span className={`size-1 rounded-full ${hasItems ? 'bg-current' : ''}`}></span>
+                    </button>
+                );
+            })}
         </div>
     );
 }

@@ -67,7 +67,7 @@ describe('Accordian', () => {
         const user = userEvent.setup();
         const { onRemove } = renderAccordian();
 
-        await user.click(screen.getAllByRole('button', { name: 'X' })[0]);
+        await user.click(screen.getByRole('button', { name: 'Remove Milk' }));
 
         expect(onRemove).toHaveBeenCalledWith(1);
     });
@@ -97,5 +97,17 @@ describe('Accordian', () => {
         await user.click(screen.getByRole('button', { name: 'Add Item' }));
 
         expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it('shows an empty state when the day has no items', () => {
+        renderAccordian({ items: [] });
+
+        expect(screen.getByText('A blank page.')).toBeInTheDocument();
+    });
+
+    it('holds back the empty state while items are loading', () => {
+        renderAccordian({ items: [], loading: true });
+
+        expect(screen.queryByText('A blank page.')).not.toBeInTheDocument();
     });
 });

@@ -24,6 +24,7 @@ export type AccordianAddButtonProps = {
 
 export type AccordianProps = {
     items: AccordianItem[];
+    loading?: boolean;
     onAdd: (item: NewAccordianItem) => void;
     onRemove: (id: number) => void;
     onToggle: (id: number) => void;
@@ -41,5 +42,7 @@ export type AccordianCardProps = {
     onDragOver: (event: DragEvent<HTMLDivElement>, id: number) => void;
     onDrop: (event: DragEvent<HTMLDivElement>, targetId: number) => void;
     onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
+    onDragEnd: () => void;
     dropHint: DropPosition | null;
+    isDragging: boolean;
 };
